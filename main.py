@@ -17,8 +17,10 @@ WINDOW = 10
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Retry-After"],
 )
 
 # ---------------- Rate Limiting ----------------
@@ -52,12 +54,26 @@ async def rate_limit(request: Request, call_next):
 
     clients[client].append(now)
 
-    return await call_next(request)
+    response = await call_next(request)
+
+    return response
 
 
-# -----------------------------------------------------
-# POST /orders
-# -----------------------------------------------------
+# ---------------- Root ----------------
+
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
+
+# ---------------- OPTIONS ----------------
+
+@app.options("/{path:path}")
+def options(path: str):
+    return {}
+
+
+# ---------------- POST /orders ----------------
 
 @app.post("/orders", status_code=201)
 def create_order(idempotency_key: str = Header(..., alias="Idempotency-Key")):
@@ -74,9 +90,7 @@ def create_order(idempotency_key: str = Header(..., alias="Idempotency-Key")):
     return order
 
 
-# -----------------------------------------------------
-# GET /orders
-# -----------------------------------------------------
+# ---------------- GET /orders ----------------
 
 @app.get("/orders")
 def list_orders(limit: int = 10, cursor: str | None = None):
