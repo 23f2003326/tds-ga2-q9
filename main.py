@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from fastapi import FastAPI, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 app = FastAPI()
 
@@ -18,9 +18,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Retry-After"],
+    expose_headers=["*"],
 )
 
 # ---------------- Rate Limiting ----------------
@@ -46,15 +46,27 @@ async def rate_limit(request: Request, call_next):
     clients[client] = [t for t in clients[client] if now - t < WINDOW]
 
     if len(clients[client]) >= RATE_LIMIT:
-        return JSONResponse(
+
+        response = JSONResponse(
             status_code=429,
             content={"detail": "Rate limit exceeded"},
-            headers={"Retry-After": "10"},
         )
+
+        response.headers["Retry-After"] = "10"
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+
+        return response
 
     clients[client].append(now)
 
     response = await call_next(request)
+
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "*"
 
     return response
 
@@ -69,8 +81,8 @@ def root():
 # ---------------- OPTIONS ----------------
 
 @app.options("/{path:path}")
-def options(path: str):
-    return {}
+async def options(path: str):
+    return Response(status_code=204)
 
 
 # ---------------- POST /orders ----------------
