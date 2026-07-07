@@ -20,7 +20,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
+    expose_headers=["Retry-After"],
 )
 
 # ---------------- Rate Limiting ----------------
@@ -40,10 +40,12 @@ orders = [{"id": i} for i in range(1, TOTAL_ORDERS + 1)]
 async def rate_limit(request: Request, call_next):
 
     client = request.headers.get("X-Client-Id", "anonymous")
-
     now = time.time()
 
-    clients[client] = [t for t in clients[client] if now - t < WINDOW]
+    clients[client] = [
+        t for t in clients[client]
+        if now - t < WINDOW
+    ]
 
     if len(clients[client]) >= RATE_LIMIT:
 
@@ -56,6 +58,7 @@ async def rate_limit(request: Request, call_next):
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Expose-Headers"] = "Retry-After"
 
         return response
 
@@ -66,7 +69,7 @@ async def rate_limit(request: Request, call_next):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Expose-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "Retry-After"
 
     return response
 
@@ -82,7 +85,15 @@ def root():
 
 @app.options("/{path:path}")
 async def options(path: str):
-    return Response(status_code=204)
+
+    response = Response(status_code=204)
+
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "Retry-After"
+
+    return response
 
 
 # ---------------- POST /orders ----------------
